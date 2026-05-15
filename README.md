@@ -1,35 +1,37 @@
-# 🔧 AI Race Engineer — F1 Chatbot powered by Claude API
+# 🔧 AI Race Engineer — F1 Chatbot powered by Gemini AI
 
 > **Part 4 of the [Learning AI/ML with F1](https://github.com/anurag-lenkaa) series by Divyanshi Kamra**
 
-Chat with an AI F1 Race Engineer that queries **real historical data** to answer your questions. Built with the **Anthropic Claude API** using **tool use** — Claude decides which data tool to call, fetches the answer, and responds like an expert engineer.
+Chat with an AI F1 Race Engineer that queries **real historical data** to answer your questions. Built with the **Google Gemini API** (free!) using **function calling** — Gemini decides which data tool to call, fetches the answer, and responds like an expert engineer.
 
 ---
 
 ## 🏁 What You'll Learn
-- **Anthropic Claude API** — messages, system prompts, model selection
-- **Tool use (function calling)** — letting Claude call your Python functions
+- **Google Gemini API** — messages, system prompts, model selection
+- **Function calling** — letting Gemini call your Python functions automatically
 - **Agentic loops** — handling multi-turn tool use automatically
 - **Streamlit chat UI** — `st.chat_message`, `st.chat_input`, session state
 - Building **data-grounded AI** that doesn't hallucinate
 
 ---
 
-## 🛠️ How Tool Use Works
+## 🛠️ How Function Calling Works
 
 ```python
-client = anthropic.Anthropic(api_key="your-key")
+import google.generativeai as genai
 
-response = client.messages.create(
-    model="claude-sonnet-4-5",
-    tools=TOOLS,           # 5 F1 data tools
-    messages=history,
+genai.configure(api_key="your-key")
+
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash",   # Free tier
+    tools=[get_driver_stats, get_champion_by_year, ...],  # Your Python functions
+    system_instruction="You are an expert F1 Race Engineer..."
 )
 
-if response.stop_reason == "tool_use":
-    # Claude called a tool — execute it and feed results back
-    result = execute_tool(block.name, block.input)
-    # Loop continues until Claude gives a final text response
+chat = model.start_chat(enable_automatic_function_calling=True)
+response = chat.send_message("Who has the most F1 wins?")
+# Gemini automatically calls your functions and returns final answer
+print(response.text)
 ```
 
 ---
@@ -42,7 +44,7 @@ if response.stop_reason == "tool_use":
 | `get_champion_by_year` | Driver + constructor champion for any year |
 | `get_constructor_stats` | Team wins, seasons active, best results |
 | `search_race_results` | Search by driver, circuit, country, year |
-| `get_top_drivers` | Top N drivers by race wins (filterable by decade) |
+| `get_top_drivers` | Top N drivers by race wins |
 
 ---
 
@@ -61,26 +63,42 @@ if response.stop_reason == "tool_use":
 ```bash
 pip install -r requirements.txt
 
-# Set your API key
-set ANTHROPIC_API_KEY=sk-ant-...   # Windows
-export ANTHROPIC_API_KEY=sk-ant-... # Mac/Linux
+# Set your free Gemini API key
+# Get it free at: https://aistudio.google.com/apikey
+
+set GOOGLE_API_KEY=your-key-here     # Windows
+export GOOGLE_API_KEY=your-key-here  # Mac/Linux
 
 # Launch the chatbot
 streamlit run app.py
 ```
 
-> Get your free API key at [console.anthropic.com](https://console.anthropic.com)
+> Get your **free** API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) — no credit card needed!
+
+---
+
+## ☁️ Deploy on Streamlit Cloud (Free)
+
+1. Push this repo to GitHub
+2. Go to [share.streamlit.io](https://share.streamlit.io) → New app
+3. Set **Repository:** `anurag-lenkaa/f1-ai-race-engineer`
+4. Set **Main file:** `app.py`
+5. Click **Advanced settings** → **Secrets** → add:
+   ```
+   GOOGLE_API_KEY = "your-key-here"
+   ```
+6. Deploy 🚀
 
 ---
 
 ## 🛠️ Tech Stack
 
-![Claude](https://img.shields.io/badge/Claude-claude--sonnet--4--5-blueviolet)
-![Anthropic](https://img.shields.io/badge/Anthropic-API-orange)
+![Gemini](https://img.shields.io/badge/Gemini-1.5%20Flash-blue?logo=google)
+![Google](https://img.shields.io/badge/Google-AI%20Studio-orange)
 ![Streamlit](https://img.shields.io/badge/Streamlit-Chat-FF4B4B?logo=streamlit)
 ![Pandas](https://img.shields.io/badge/Pandas-2.0-150458?logo=pandas)
 
-- `anthropic` — Claude API with tool use
+- `google-generativeai` — Gemini API with function calling (free tier)
 - `pandas` — data querying for tool functions
 - `streamlit` — chat interface with history
 
@@ -98,16 +116,6 @@ ai-race-engineer/
 ├── requirements.txt
 └── README.md
 ```
-
----
-
-## ☁️ Deploy on Streamlit Cloud
-
-1. Push this repo to GitHub
-2. Go to [share.streamlit.io](https://share.streamlit.io) → New app
-3. Set **Main file:** `app.py`
-4. Add secret: `ANTHROPIC_API_KEY = "sk-ant-..."`
-5. Deploy 🚀
 
 ---
 
