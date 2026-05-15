@@ -14,12 +14,19 @@ st.markdown(
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
+# Auto-load from Streamlit secrets (for cloud deployment)
+_secret_key = st.secrets.get("GOOGLE_API_KEY", "") if hasattr(st, "secrets") else ""
+
 api_key = st.sidebar.text_input(
     "Google Gemini API Key",
+    value=_secret_key,
     type="password",
     help="Get yours free at aistudio.google.com/apikey",
 )
-st.sidebar.markdown("[🔑 Get free API key here](https://aistudio.google.com/apikey)")
+if _secret_key:
+    st.sidebar.success("API key loaded from secrets ✅")
+else:
+    st.sidebar.markdown("[🔑 Get free API key here](https://aistudio.google.com/apikey)")
 st.sidebar.markdown("---")
 st.sidebar.markdown("**Example questions:**")
 st.sidebar.markdown("- Who has the most F1 wins?")
