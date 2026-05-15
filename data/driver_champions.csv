@@ -1,0 +1,78 @@
+year,driver,nationality,constructor,wins,points
+1950,Nino Farina,Italian,Alfa Romeo,3,30.0
+1951,Juan Fangio,Argentine,Alfa Romeo,3,31.0
+1952,Alberto Ascari,Italian,Ferrari,6,36.0
+1953,Alberto Ascari,Italian,Ferrari,5,34.5
+1954,Juan Fangio,Argentine,Maserati,6,42.0
+1955,Juan Fangio,Argentine,Mercedes,4,40.0
+1956,Juan Fangio,Argentine,Ferrari,3,30.0
+1957,Juan Fangio,Argentine,Maserati,4,40.0
+1958,Mike Hawthorn,British,Ferrari,1,42.0
+1959,Jack Brabham,Australian,Cooper-Climax,2,31.0
+1960,Jack Brabham,Australian,Cooper-Climax,5,43.0
+1961,Phil Hill,American,Ferrari,2,34.0
+1962,Graham Hill,British,BRM,4,42.0
+1963,Jim Clark,British,Lotus-Climax,7,54.0
+1964,John Surtees,British,Ferrari,2,40.0
+1965,Jim Clark,British,Lotus-Climax,6,54.0
+1966,Jack Brabham,Australian,Brabham-Repco,4,42.0
+1967,Denny Hulme,New Zealander,Brabham-Repco,2,51.0
+1968,Graham Hill,British,Lotus-Ford,3,48.0
+1969,Jackie Stewart,British,Matra-Ford,6,63.0
+1970,Jochen Rindt,Austrian,Team Lotus,5,45.0
+1971,Jackie Stewart,British,Tyrrell,6,62.0
+1972,Emerson Fittipaldi,Brazilian,Team Lotus,5,61.0
+1973,Jackie Stewart,British,Tyrrell,5,71.0
+1974,Emerson Fittipaldi,Brazilian,McLaren,3,55.0
+1975,Niki Lauda,Austrian,Ferrari,5,64.5
+1976,James Hunt,British,McLaren,6,66.0
+1977,Niki Lauda,Austrian,Ferrari,3,70.0
+1978,Mario Andretti,American,Team Lotus,6,64.0
+1979,Jody Scheckter,South African,Ferrari,3,51.0
+1980,Alan Jones,Australian,Williams,5,67.0
+1981,Nelson Piquet,Brazilian,Brabham,3,50.0
+1982,Keke Rosberg,Finnish,Williams,1,44.0
+1983,Nelson Piquet,Brazilian,Brabham,3,59.0
+1984,Niki Lauda,Austrian,McLaren,5,72.0
+1985,Alain Prost,French,McLaren,5,73.0
+1986,Alain Prost,French,McLaren,4,72.0
+1987,Nelson Piquet,Brazilian,Williams,3,73.0
+1988,Ayrton Senna,Brazilian,McLaren,8,90.0
+1989,Alain Prost,French,McLaren,4,76.0
+1990,Ayrton Senna,Brazilian,McLaren,6,78.0
+1991,Ayrton Senna,Brazilian,McLaren,7,96.0
+1992,Nigel Mansell,British,Williams,9,108.0
+1993,Alain Prost,French,Williams,7,99.0
+1994,Michael Schumacher,German,Benetton,8,92.0
+1995,Michael Schumacher,German,Benetton,9,102.0
+1996,Damon Hill,British,Williams,8,97.0
+1997,Jacques Villeneuve,Canadian,Williams,7,81.0
+1998,Mika Häkkinen,Finnish,McLaren,8,100.0
+1999,Mika Häkkinen,Finnish,McLaren,5,76.0
+2000,Michael Schumacher,German,Ferrari,9,108.0
+2001,Michael Schumacher,German,Ferrari,9,123.0
+2002,Michael Schumacher,German,Ferrari,11,144.0
+2003,Michael Schumacher,German,Ferrari,6,93.0
+2004,Michael Schumacher,German,Ferrari,13,148.0
+2005,Fernando Alonso,Spanish,Renault,7,133.0
+2006,Fernando Alonso,Spanish,Renault,7,134.0
+2007,Kimi Räikkönen,Finnish,Ferrari,6,110.0
+2008,Lewis Hamilton,British,McLaren,5,98.0
+2009,Jenson Button,British,Brawn,6,95.0
+2010,Sebastian Vettel,German,Red Bull,5,256.0
+2011,Sebastian Vettel,German,Red Bull,11,392.0
+2012,Sebastian Vettel,German,Red Bull,5,281.0
+2013,Sebastian Vettel,German,Red Bull,13,397.0
+2014,Lewis Hamilton,British,Mercedes,11,384.0
+2015,Lewis Hamilton,British,Mercedes,10,381.0
+2016,Nico Rosberg,German,Mercedes,9,385.0
+2017,Lewis Hamilton,British,Mercedes,9,363.0
+2018,Lewis Hamilton,British,Mercedes,11,408.0
+2019,Lewis Hamilton,British,Mercedes,11,413.0
+2020,Lewis Hamilton,British,Mercedes,11,347.0
+2021,Max Verstappen,Dutch,Red Bull,10,395.5
+2022,Max Verstappen,Dutch,Red Bull,15,454.0
+2023,Max Verstappen,Dutch,Red Bull,19,575.0
+2024,Max Verstappen,Dutch,Red Bull,9,437.0
+2025,Lando Norris,British,McLaren,7,423.0
+2026,Andrea Kimi Antonelli,Italian,Mercedes,3,100.0
