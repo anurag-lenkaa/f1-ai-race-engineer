@@ -1,5 +1,5 @@
 import streamlit as st
-import anthropic
+import google.generativeai as genai
 import pandas as pd
 import json
 import os
@@ -7,17 +7,18 @@ import os
 st.set_page_config(page_title="AI Race Engineer", page_icon="🔧", layout="wide")
 st.title("🔧 AI Race Engineer")
 st.markdown(
-    "Chat with an F1 expert powered by Claude — it queries real race data to answer your questions."
+    "Chat with an F1 expert powered by **Gemini AI** (free!) — queries real race data to answer your questions."
 )
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 api_key = st.sidebar.text_input(
-    "Anthropic API Key",
+    "Google Gemini API Key",
     type="password",
-    help="Get yours at console.anthropic.com",
+    help="Get yours free at aistudio.google.com/apikey",
 )
+st.sidebar.markdown("[🔑 Get free API key here](https://aistudio.google.com/apikey)")
 st.sidebar.markdown("---")
 st.sidebar.markdown("**Example questions:**")
 st.sidebar.markdown("- Who has the most F1 wins?")
@@ -46,196 +47,90 @@ try:
     race_results, driver_champions, constructor_champions = load_data()
     data_loaded = True
 except Exception as e:
-    st.warning(f"Could not load data files: {e}. Some tool responses may be limited.")
+    st.warning(f"Could not load data: {e}")
     race_results = pd.DataFrame()
     driver_champions = pd.DataFrame()
     constructor_champions = pd.DataFrame()
     data_loaded = False
 
-# ── Tool definitions ───────────────────────────────────────────────────────────
-TOOLS = [
-    {
-        "name": "get_driver_stats",
-        "description": (
-            "Get career statistics for an F1 driver including wins, championships, "
-            "nationality, and teams raced for."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "driver_name": {
-                    "type": "string",
-                    "description": "Full or partial name of the driver (e.g. 'Hamilton', 'Lewis Hamilton')",
-                }
-            },
-            "required": ["driver_name"],
-        },
-    },
-    {
-        "name": "get_champion_by_year",
-        "description": "Get the F1 World Drivers' Champion and Constructors' Champion for a given year.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "year": {
-                    "type": "integer",
-                    "description": "The season year (e.g. 2021)",
-                }
-            },
-            "required": ["year"],
-        },
-    },
-    {
-        "name": "get_constructor_stats",
-        "description": (
-            "Get career statistics for an F1 constructor/team including total wins "
-            "and seasons active."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "constructor_name": {
-                    "type": "string",
-                    "description": "Full or partial name of the constructor (e.g. 'Ferrari', 'Red Bull')",
-                }
-            },
-            "required": ["constructor_name"],
-        },
-    },
-    {
-        "name": "search_race_results",
-        "description": (
-            "Search race results across race name, driver name, constructor name, "
-            "or country. Returns matching rows."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Search term to match against race, driver, constructor, or country fields",
-                }
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "get_top_drivers",
-        "description": "Get the top N F1 drivers ranked by total career wins.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "top_n": {
-                    "type": "integer",
-                    "description": "Number of top drivers to return (default 10)",
-                    "default": 10,
-                }
-            },
-            "required": [],
-        },
-    },
-]
 
-
-# ── Tool execution ─────────────────────────────────────────────────────────────
-def _find_driver_col(df, hint="driver"):
-    """Return the column name that most likely contains driver names."""
-    for col in df.columns:
-        if hint in col.lower():
-            return col
+# ── Helper ─────────────────────────────────────────────────────────────────────
+def _find_col(df, *hints):
+    for hint in hints:
+        for col in df.columns:
+            if hint in col.lower():
+                return col
     return None
 
 
-def _find_constructor_col(df, hint="constructor"):
-    for col in df.columns:
-        if hint in col.lower() or "team" in col.lower():
-            return col
-    return None
+# ── Tool functions — Gemini reads docstrings + type hints automatically ─────────
+def get_driver_stats(driver_name: str) -> str:
+    """Get career statistics for an F1 driver: wins, championships, nationality, teams.
 
-
-def get_driver_stats(driver_name: str) -> dict:
+    Args:
+        driver_name: Full or partial driver name, e.g. 'Hamilton' or 'Lewis Hamilton'
+    """
     if race_results.empty:
-        return {"error": "Race results data not available"}
+        return json.dumps({"error": "Data not available"})
 
-    dcol = _find_driver_col(race_results)
-    if dcol is None:
-        return {"error": "Driver column not found in race_results"}
+    dcol = _find_col(race_results, "driver")
+    if not dcol:
+        return json.dumps({"error": "Driver column not found"})
 
-    mask = race_results[dcol].str.contains(driver_name, case=False, na=False)
-    sub = race_results[mask]
-
+    sub = race_results[race_results[dcol].str.contains(driver_name, case=False, na=False)]
     if sub.empty:
-        return {"message": f"No results found for driver '{driver_name}'"}
+        return json.dumps({"message": f"No results found for '{driver_name}'"})
 
-    # Try to count wins
-    result: dict = {"driver_name": driver_name, "races_found": len(sub)}
+    result = {"driver": driver_name, "race_entries": len(sub)}
 
-    win_col = next(
-        (c for c in sub.columns if "win" in c.lower() or "position" in c.lower()), None
-    )
-    if win_col:
-        try:
-            wins = (pd.to_numeric(sub[win_col], errors="coerce") == 1).sum()
-            result["wins"] = int(wins)
-        except Exception:
-            pass
+    pos_col = _find_col(sub, "position", "win")
+    if pos_col:
+        result["wins"] = int((pd.to_numeric(sub[pos_col], errors="coerce") == 1).sum())
 
-    # Championships from driver_champions
     if not driver_champions.empty:
-        dchamp_col = _find_driver_col(driver_champions)
+        dchamp_col = _find_col(driver_champions, "driver")
         if dchamp_col:
-            champ_mask = driver_champions[dchamp_col].str.contains(
-                driver_name, case=False, na=False
-            )
-            championships = driver_champions[champ_mask]
-            result["championships"] = len(championships)
-            year_col = next(
-                (c for c in championships.columns if "year" in c.lower() or "season" in c.lower()),
-                None,
-            )
-            if year_col:
-                result["championship_years"] = sorted(championships[year_col].tolist())
+            champs = driver_champions[
+                driver_champions[dchamp_col].str.contains(driver_name, case=False, na=False)
+            ]
+            result["championships"] = len(champs)
+            yr_col = _find_col(champs, "year", "season")
+            if yr_col and len(champs):
+                result["championship_years"] = sorted(champs[yr_col].tolist())
 
-    # Teams
-    ccol = _find_constructor_col(sub)
+    ccol = _find_col(sub, "constructor", "team")
     if ccol:
         result["teams"] = sub[ccol].dropna().unique().tolist()
 
-    # Nationality
-    nat_col = next((c for c in sub.columns if "nation" in c.lower() or "country" in c.lower()), None)
-    if nat_col:
-        result["nationality"] = sub[nat_col].mode().iloc[0] if not sub[nat_col].empty else None
+    nat_col = _find_col(sub, "nation", "country")
+    if nat_col and len(sub):
+        result["nationality"] = sub[nat_col].mode().iloc[0]
 
-    return result
+    return json.dumps(result, default=str)
 
 
-def get_champion_by_year(year: int) -> dict:
-    result: dict = {"year": year}
+def get_champion_by_year(year: int) -> str:
+    """Get the F1 World Drivers Champion and Constructors Champion for a given season year.
+
+    Args:
+        year: Season year, e.g. 2021
+    """
+    result = {"year": year}
 
     if not driver_champions.empty:
-        year_col = next(
-            (c for c in driver_champions.columns if "year" in c.lower() or "season" in c.lower()),
-            None,
-        )
-        if year_col:
-            row = driver_champions[driver_champions[year_col] == year]
+        yr_col = _find_col(driver_champions, "year", "season")
+        if yr_col:
+            row = driver_champions[driver_champions[yr_col] == year]
             if not row.empty:
-                dcol = _find_driver_col(driver_champions)
+                dcol = _find_col(driver_champions, "driver")
                 result["drivers_champion"] = row[dcol].iloc[0] if dcol else row.iloc[0].to_dict()
 
     if not constructor_champions.empty:
-        year_col = next(
-            (
-                c
-                for c in constructor_champions.columns
-                if "year" in c.lower() or "season" in c.lower()
-            ),
-            None,
-        )
-        if year_col:
-            row = constructor_champions[constructor_champions[year_col] == year]
+        yr_col = _find_col(constructor_champions, "year", "season")
+        if yr_col:
+            row = constructor_champions[constructor_champions[yr_col] == year]
             if not row.empty:
-                ccol = _find_constructor_col(constructor_champions)
+                ccol = _find_col(constructor_champions, "constructor", "team")
                 result["constructors_champion"] = (
                     row[ccol].iloc[0] if ccol else row.iloc[0].to_dict()
                 )
@@ -243,50 +138,51 @@ def get_champion_by_year(year: int) -> dict:
     if len(result) == 1:
         result["message"] = f"No championship data found for {year}"
 
-    return result
+    return json.dumps(result, default=str)
 
 
-def get_constructor_stats(constructor_name: str) -> dict:
+def get_constructor_stats(constructor_name: str) -> str:
+    """Get career statistics for an F1 constructor/team: total wins and seasons active.
+
+    Args:
+        constructor_name: Full or partial team name, e.g. 'Ferrari' or 'Red Bull'
+    """
     if race_results.empty:
-        return {"error": "Race results data not available"}
+        return json.dumps({"error": "Data not available"})
 
-    ccol = _find_constructor_col(race_results)
-    if ccol is None:
-        return {"error": "Constructor column not found in race_results"}
+    ccol = _find_col(race_results, "constructor", "team")
+    if not ccol:
+        return json.dumps({"error": "Constructor column not found"})
 
-    mask = race_results[ccol].str.contains(constructor_name, case=False, na=False)
-    sub = race_results[mask]
-
+    sub = race_results[
+        race_results[ccol].str.contains(constructor_name, case=False, na=False)
+    ]
     if sub.empty:
-        return {"message": f"No results found for constructor '{constructor_name}'"}
+        return json.dumps({"message": f"No results for '{constructor_name}'"})
 
-    result: dict = {"constructor_name": constructor_name, "races_found": len(sub)}
+    result = {"constructor": constructor_name, "race_entries": len(sub)}
 
-    win_col = next(
-        (c for c in sub.columns if "win" in c.lower() or "position" in c.lower()), None
-    )
-    if win_col:
-        try:
-            wins = (pd.to_numeric(sub[win_col], errors="coerce") == 1).sum()
-            result["wins"] = int(wins)
-        except Exception:
-            pass
+    pos_col = _find_col(sub, "position", "win")
+    if pos_col:
+        result["wins"] = int((pd.to_numeric(sub[pos_col], errors="coerce") == 1).sum())
 
-    year_col = next(
-        (c for c in sub.columns if "year" in c.lower() or "season" in c.lower()), None
-    )
-    if year_col:
-        years = pd.to_numeric(sub[year_col], errors="coerce").dropna()
-        result["seasons_active"] = sorted(years.unique().astype(int).tolist())
+    yr_col = _find_col(sub, "year", "season")
+    if yr_col:
+        years = pd.to_numeric(sub[yr_col], errors="coerce").dropna()
         result["first_season"] = int(years.min())
         result["last_season"] = int(years.max())
 
-    return result
+    return json.dumps(result, default=str)
 
 
-def search_race_results(query: str) -> dict:
+def search_race_results(query: str) -> str:
+    """Search F1 race results by driver name, circuit, country, or team name.
+
+    Args:
+        query: Search term to match against race, driver, constructor, or country fields
+    """
     if race_results.empty:
-        return {"error": "Race results data not available"}
+        return json.dumps({"error": "Data not available"})
 
     str_cols = race_results.select_dtypes(include="object").columns
     mask = race_results[str_cols].apply(
@@ -294,33 +190,34 @@ def search_race_results(query: str) -> dict:
     ).any(axis=1)
 
     matches = race_results[mask].head(20)
-
     if matches.empty:
-        return {"message": f"No race results found matching '{query}'"}
+        return json.dumps({"message": f"No results matching '{query}'"})
 
-    return {
-        "query": query,
-        "count": int(mask.sum()),
-        "results": matches.to_dict(orient="records"),
-    }
-
-
-def get_top_drivers(top_n: int = 10) -> dict:
-    if race_results.empty:
-        return {"error": "Race results data not available"}
-
-    dcol = _find_driver_col(race_results)
-    win_col = next(
-        (c for c in race_results.columns if "win" in c.lower() or "position" in c.lower()), None
+    return json.dumps(
+        {"query": query, "count": int(mask.sum()), "results": matches.to_dict(orient="records")},
+        default=str,
     )
 
-    if dcol is None or win_col is None:
-        return {"error": "Required columns not found"}
 
-    df_copy = race_results[[dcol, win_col]].copy()
-    df_copy["_is_win"] = pd.to_numeric(df_copy[win_col], errors="coerce") == 1
+def get_top_drivers(top_n: int = 10) -> str:
+    """Get the top F1 drivers ranked by total career race wins.
+
+    Args:
+        top_n: Number of top drivers to return (default 10)
+    """
+    if race_results.empty:
+        return json.dumps({"error": "Data not available"})
+
+    dcol = _find_col(race_results, "driver")
+    pos_col = _find_col(race_results, "position", "win")
+
+    if not dcol or not pos_col:
+        return json.dumps({"error": "Required columns not found"})
+
+    df_copy = race_results[[dcol, pos_col]].copy()
+    df_copy["_win"] = pd.to_numeric(df_copy[pos_col], errors="coerce") == 1
     top = (
-        df_copy.groupby(dcol)["_is_win"]
+        df_copy.groupby(dcol)["_win"]
         .sum()
         .sort_values(ascending=False)
         .head(top_n)
@@ -330,69 +227,46 @@ def get_top_drivers(top_n: int = 10) -> dict:
     top["wins"] = top["wins"].astype(int)
     top["rank"] = range(1, len(top) + 1)
 
-    return {"top_n": top_n, "drivers": top.to_dict(orient="records")}
-
-
-def execute_tool(name: str, inputs: dict) -> dict:
-    if name == "get_driver_stats":
-        return get_driver_stats(inputs["driver_name"])
-    elif name == "get_champion_by_year":
-        return get_champion_by_year(inputs["year"])
-    elif name == "get_constructor_stats":
-        return get_constructor_stats(inputs["constructor_name"])
-    elif name == "search_race_results":
-        return search_race_results(inputs["query"])
-    elif name == "get_top_drivers":
-        return get_top_drivers(inputs.get("top_n", 10))
-    else:
-        return {"error": f"Unknown tool: {name}"}
+    return json.dumps({"top_n": top_n, "drivers": top.to_dict(orient="records")})
 
 
 # ── Chat function ──────────────────────────────────────────────────────────────
-def chat(user_message: str, history: list, api_key: str):
-    client = anthropic.Anthropic(api_key=api_key)
+def chat(user_message: str, history: list, api_key: str) -> str:
+    genai.configure(api_key=api_key)
 
-    SYSTEM = (
-        "You are an expert F1 Race Engineer AI with access to 70+ years of F1 data. "
-        "Use your tools to retrieve accurate data before answering. "
-        "Be enthusiastic, concise, and knowledgeable. Use F1 terminology naturally. "
-        "When comparing drivers or teams, always back up claims with numbers from the data."
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        tools=[
+            get_driver_stats,
+            get_champion_by_year,
+            get_constructor_stats,
+            search_race_results,
+            get_top_drivers,
+        ],
+        system_instruction=(
+            "You are an expert F1 Race Engineer AI with access to 70+ years of F1 historical data. "
+            "Always use your tools to fetch accurate data before answering. "
+            "Be enthusiastic, concise, and knowledgeable. Use F1 terminology naturally. "
+            "When comparing drivers or teams, always back up claims with numbers from the data."
+        ),
     )
 
-    history = history + [{"role": "user", "content": user_message}]
+    # Rebuild Gemini chat history from plain text messages
+    gemini_history = []
+    for msg in history:
+        role = "user" if msg["role"] == "user" else "model"
+        gemini_history.append({"role": role, "parts": [msg["content"]]})
 
-    while True:
-        response = client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=1024,
-            system=SYSTEM,
-            tools=TOOLS,
-            messages=history,
-        )
+    gemini_chat = model.start_chat(
+        history=gemini_history,
+        enable_automatic_function_calling=True,
+    )
 
-        if response.stop_reason == "tool_use":
-            history.append({"role": "assistant", "content": response.content})
-            tool_results = []
-            for block in response.content:
-                if block.type == "tool_use":
-                    result = execute_tool(block.name, block.input)
-                    tool_results.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": json.dumps(result, default=str),
-                        }
-                    )
-            history.append({"role": "user", "content": tool_results})
-        else:
-            reply = next(
-                (b.text for b in response.content if hasattr(b, "text")), ""
-            )
-            history.append({"role": "assistant", "content": reply})
-            return reply, history
+    response = gemini_chat.send_message(user_message)
+    return response.text
 
 
-# ── Session state init ─────────────────────────────────────────────────────────
+# ── Session state ──────────────────────────────────────────────────────────────
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "history" not in st.session_state:
@@ -406,7 +280,7 @@ for msg in st.session_state.messages:
 # ── Chat input ─────────────────────────────────────────────────────────────────
 if prompt := st.chat_input("Ask me anything about F1..."):
     if not api_key:
-        st.error("Please enter your Anthropic API key in the sidebar.")
+        st.error("Please enter your Gemini API key in the sidebar.")
     else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -415,13 +289,11 @@ if prompt := st.chat_input("Ask me anything about F1..."):
         with st.chat_message("assistant"):
             with st.spinner("Checking the data..."):
                 try:
-                    reply, st.session_state.history = chat(
-                        prompt, st.session_state.history, api_key
-                    )
+                    reply = chat(prompt, st.session_state.history, api_key)
                     st.markdown(reply)
-                    st.session_state.messages.append(
-                        {"role": "assistant", "content": reply}
-                    )
+                    st.session_state.history.append({"role": "user", "content": prompt})
+                    st.session_state.history.append({"role": "assistant", "content": reply})
+                    st.session_state.messages.append({"role": "assistant", "content": reply})
                 except Exception as e:
                     st.error(f"Error: {e}")
 
@@ -442,24 +314,20 @@ for col, suggestion in zip(cols, SUGGESTIONS):
     with col:
         if st.button(suggestion, use_container_width=True):
             if not api_key:
-                st.error("Please enter your Anthropic API key in the sidebar.")
+                st.error("Please enter your Gemini API key in the sidebar.")
             else:
-                st.session_state.messages.append(
-                    {"role": "user", "content": suggestion}
-                )
+                st.session_state.messages.append({"role": "user", "content": suggestion})
                 with st.chat_message("user"):
                     st.markdown(suggestion)
 
                 with st.chat_message("assistant"):
                     with st.spinner("Checking the data..."):
                         try:
-                            reply, st.session_state.history = chat(
-                                suggestion, st.session_state.history, api_key
-                            )
+                            reply = chat(suggestion, st.session_state.history, api_key)
                             st.markdown(reply)
-                            st.session_state.messages.append(
-                                {"role": "assistant", "content": reply}
-                            )
+                            st.session_state.history.append({"role": "user", "content": suggestion})
+                            st.session_state.history.append({"role": "assistant", "content": reply})
+                            st.session_state.messages.append({"role": "assistant", "content": reply})
                         except Exception as e:
                             st.error(f"Error: {e}")
                 st.rerun()
