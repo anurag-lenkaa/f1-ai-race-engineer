@@ -1,5 +1,6 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import pandas as pd
 import json
 import os
@@ -63,7 +64,7 @@ def _find_col(df, *hints):
     return None
 
 
-# ── Tool functions — Gemini reads docstrings + type hints automatically ─────────
+# ── Tool functions — Gemini reads docstrings + type hints for function calling ──
 def get_driver_stats(driver_name: str) -> str:
     """Get career statistics for an F1 driver: wins, championships, nationality, teams.
 
@@ -231,35 +232,38 @@ def get_top_drivers(top_n: int = 10) -> str:
 
 
 # ── Chat function ──────────────────────────────────────────────────────────────
+TOOLS = [get_driver_stats, get_champion_by_year, get_constructor_stats,
+         search_race_results, get_top_drivers]
+
+SYSTEM = (
+    "You are an expert F1 Race Engineer AI with access to 70+ years of F1 historical data. "
+    "Always use your tools to fetch accurate data before answering. "
+    "Be enthusiastic, concise, and knowledgeable. Use F1 terminology naturally. "
+    "When comparing drivers or teams, always back up claims with numbers from the data."
+)
+
+
 def chat(user_message: str, history: list, api_key: str) -> str:
-    genai.configure(api_key=api_key)
+    client = genai.Client(api_key=api_key)
 
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        tools=[
-            get_driver_stats,
-            get_champion_by_year,
-            get_constructor_stats,
-            search_race_results,
-            get_top_drivers,
-        ],
-        system_instruction=(
-            "You are an expert F1 Race Engineer AI with access to 70+ years of F1 historical data. "
-            "Always use your tools to fetch accurate data before answering. "
-            "Be enthusiastic, concise, and knowledgeable. Use F1 terminology naturally. "
-            "When comparing drivers or teams, always back up claims with numbers from the data."
-        ),
-    )
-
-    # Rebuild Gemini chat history from plain text messages
+    # Build chat history in Gemini format (text only, no tool call messages)
     gemini_history = []
     for msg in history:
         role = "user" if msg["role"] == "user" else "model"
-        gemini_history.append({"role": role, "parts": [msg["content"]]})
+        gemini_history.append(
+            types.Content(role=role, parts=[types.Part(text=msg["content"])])
+        )
 
-    gemini_chat = model.start_chat(
+    gemini_chat = client.chats.create(
+        model="gemini-2.0-flash",
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM,
+            tools=TOOLS,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                disable=False, maximum_remote_calls=5
+            ),
+        ),
         history=gemini_history,
-        enable_automatic_function_calling=True,
     )
 
     response = gemini_chat.send_message(user_message)
