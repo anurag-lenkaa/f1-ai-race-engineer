@@ -250,30 +250,62 @@ SYSTEM = (
 )
 
 
+def execute_tool(name: str, args: dict) -> str:
+    fn_map = {
+        "get_driver_stats":      get_driver_stats,
+        "get_champion_by_year":  get_champion_by_year,
+        "get_constructor_stats": get_constructor_stats,
+        "search_race_results":   search_race_results,
+        "get_top_drivers":       get_top_drivers,
+    }
+    if name in fn_map:
+        return fn_map[name](**args)
+    return json.dumps({"error": f"Unknown tool: {name}"})
+
+
 def chat(user_message: str, history: list, api_key: str) -> str:
     client = genai.Client(api_key=api_key)
 
-    # Build chat history in Gemini format (text only, no tool call messages)
-    gemini_history = []
+    # Build full conversation as a contents list
+    contents = []
     for msg in history:
         role = "user" if msg["role"] == "user" else "model"
-        gemini_history.append(
-            types.Content(role=role, parts=[types.Part(text=msg["content"])])
+        contents.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
+    contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
+
+    config = types.GenerateContentConfig(system_instruction=SYSTEM, tools=TOOLS)
+
+    # Agentic loop — keep calling until no more function calls
+    for _ in range(5):
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=contents,
+            config=config,
         )
 
-    gemini_chat = client.chats.create(
-        model="gemini-1.5-flash",
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM,
-            tools=TOOLS,
-            automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                disable=False, maximum_remote_calls=5
-            ),
-        ),
-        history=gemini_history,
-    )
+        candidate = response.candidates[0]
+        fn_calls = [p.function_call for p in candidate.content.parts if p.function_call]
 
-    response = gemini_chat.send_message(user_message)
+        if not fn_calls:
+            return response.text
+
+        # Add model response to contents
+        contents.append(candidate.content)
+
+        # Execute each function call and feed results back
+        result_parts = []
+        for fc in fn_calls:
+            result = execute_tool(fc.name, dict(fc.args))
+            result_parts.append(
+                types.Part(
+                    function_response=types.FunctionResponse(
+                        name=fc.name,
+                        response={"result": result},
+                    )
+                )
+            )
+        contents.append(types.Content(role="user", parts=result_parts))
+
     return response.text
 
 
